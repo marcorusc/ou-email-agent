@@ -1,0 +1,8 @@
+# WSL host launching native Windows Python. Replace both paths.
+# The executable path is WSL-style; its script argument is a Windows path.
+[mcp_servers.ou_email]
+enabled = true
+command = '/mnt/c/path/to/ou-email-agent/.venv/Scripts/python.exe'
+args = ['C:\path\to\ou-email-agent\launch-mcp.py']
+startup_timeout_sec = 30
+tool_timeout_sec = 180

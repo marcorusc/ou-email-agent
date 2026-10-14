@@ -1,0 +1,32 @@
+{
+  "host": "imap.example.org",
+  "port": 993,
+  "username": "you@example.org",
+  "folders": [
+    "INBOX"
+  ],
+  "initial_days": 30,
+  "poll_seconds": 60,
+  "batch_size": 50,
+  "max_message_bytes": 20000000,
+  "ollama_url": "http://127.0.0.1:11434",
+  "model": "qwen3:14b",
+  "embedding_model": "embeddinggemma",
+  "embedding_max_bytes": 1800,
+  "embedding_num_gpu": 0,
+  "embedding_num_thread": 2,
+  "embedding_request_budget": 8,
+  "context_tokens": 8192,
+  "analysis_batch_size": 1,
+  "background_analysis": false,
+  "analysis_interval_seconds": 300,
+  "model_keep_alive": 0,
+  "alert_categories": [
+    "direct_request",
+    "deadline",
+    "meeting_change"
+  ],
+  "priority_senders": [],
+  "notifications": true,
+  "timezone": "UTC"
+}

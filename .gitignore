@@ -1,0 +1,24 @@
+# Private per-user settings and mail cache
+config.json
+config.*.local.json
+data/
+.env
+.env.*
+*.sqlite*
+*.db
+*.eml
+*.mbox
+*.pst
+*.ost
+*.log
+verification.json
+# Environment/build output
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+# Generated client launch configurations may contain local paths
+mcp-config.local.*
