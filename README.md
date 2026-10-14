@@ -81,6 +81,18 @@ For paced new-mail alerts, set `background_analysis` to `true` and restart the m
 
 ## Models and hardware
 
+### Synthetic pilot results
+
+A [reproducible benchmark](benchmarks/results/2026-10-14-rtx5080/README.md) compares 48 synthetic English/Japanese messages on an RTX 5080 Laptop GPU. With the unchanged production prompt, thinking disabled and an 8,192-token context:
+
+| Classifier | Correct and validated | Important messages retained | Median warm latency | Loaded model VRAM |
+| --- | ---: | ---: | ---: | ---: |
+| Qwen3 1.7B | 9/48 (18.8%) | 3/24 | 0.96 s | 2.08 GiB |
+| Qwen3 4B | 44/48 (91.7%) | 23/24 | 1.19 s | 3.61 GiB |
+| Qwen3 14B | 37/48 (77.1%) | 14/24 | 2.36 s | 9.75 GiB |
+
+4B is a useful candidate to trial on smaller hardware. 1.7B often produced evidence quotes rejected by the current validator; 14B made fewer false important decisions but missed more reference-positive requests. These are assistant-labelled synthetic scenarios, including paired translations and debatable policy choices—not independent real-mail accuracy estimates. CPU-only and other-GPU performance were not measured. See the full report for raw accuracy, false positives, failures, per-case outputs, and limitations; [run the benchmark](benchmarks/README.md) on your own hardware before choosing.
+
 Two independent models serve different purposes:
 
 | Setting | Default | Used for |
@@ -88,9 +100,9 @@ Two independent models serve different purposes:
 | `model` | `qwen3:14b` | Importance classification, summaries, agenda proposals |
 | `embedding_model` | `embeddinggemma` | Semantic indexing and query vectors |
 
-A smaller classifier such as `qwen3:4b` can reduce memory and often latency. It may miss subtle requests, misread quoted/cancelled events, or produce less reliable evidence and dates. These are expected risks, not a measured accuracy comparison for this project. Test representative English/Japanese messages before using it for alerts. Existing classifications are preserved when you change the model; new analysis uses the new model. Changing only the classifier does not require rebuilding the semantic index. Changing the embedding model does.
+A smaller classifier such as `qwen3:4b` reduced memory and latency in this pilot. Any classifier may miss subtle requests, misread quoted/cancelled events, or produce unreliable evidence and dates. Test representative English/Japanese messages before using it for alerts; the synthetic benchmark does not establish real-mail accuracy. Existing classifications are preserved when you change the model; new analysis uses the new model. Changing only the classifier does not require rebuilding the semantic index. Changing the embedding model does.
 
-See [model tradeoffs](docs/models.md). Neither a GPU nor the 14B model is required for keyword search. CPU embeddings are supported; their speed depends on hardware. A quantized model's download size is not its total runtime memory requirement.
+See [model tradeoffs](docs/models.md). Neither a GPU nor the 14B model is required for keyword search. CPU embeddings are supported; their speed depends on hardware. A quantized model's download size is not its total runtime memory requirement. The default remains 14B; the pilot does not silently change existing installations.
 
 ## Privacy and reliability
 

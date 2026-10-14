@@ -1,0 +1,104 @@
+[
+  {
+    "model": "qwen3:1.7b",
+    "messages": 48,
+    "accepted": 15,
+    "validation_or_request_failures": 33,
+    "strict_accuracy": 0.1875,
+    "accepted_accuracy": 0.6,
+    "alert_precision": 0.3333333333333333,
+    "alert_recall": 0.125,
+    "alert_f1": 0.18181818181818182,
+    "missed_important": 21,
+    "important_messages": 24,
+    "false_alerts": 6,
+    "nonimportant_messages": 24,
+    "false_alert_rate": 0.25,
+    "category_agreement": 0.20833333333333334,
+    "agenda_evidence_rejected_messages": 0,
+    "raw_importance_accuracy": 0.625,
+    "notification_policy": {
+      "precision": 0.6,
+      "recall": 0.125,
+      "true_positive": 3,
+      "false_positive": 2,
+      "missed_important": 21
+    },
+    "median_seconds": 0.9559039500018116,
+    "p95_seconds": 1.137128800037317,
+    "loaded_vram_gib": 2.0817675767466426,
+    "cold_warmup_seconds": 16.75096209999174,
+    "strict_accuracy_cluster_bootstrap_95": [
+      0.0625,
+      0.3125
+    ]
+  },
+  {
+    "model": "qwen3:4b",
+    "messages": 48,
+    "accepted": 47,
+    "validation_or_request_failures": 1,
+    "strict_accuracy": 0.9166666666666666,
+    "accepted_accuracy": 0.9361702127659575,
+    "alert_precision": 0.8846153846153846,
+    "alert_recall": 0.9583333333333334,
+    "alert_f1": 0.92,
+    "missed_important": 1,
+    "important_messages": 24,
+    "false_alerts": 3,
+    "nonimportant_messages": 24,
+    "false_alert_rate": 0.125,
+    "category_agreement": 0.7291666666666666,
+    "agenda_evidence_rejected_messages": 0,
+    "raw_importance_accuracy": 0.9375,
+    "notification_policy": {
+      "precision": 0.8846153846153846,
+      "recall": 0.9583333333333334,
+      "true_positive": 23,
+      "false_positive": 3,
+      "missed_important": 1
+    },
+    "median_seconds": 1.1922238999977708,
+    "p95_seconds": 1.8537166999885812,
+    "loaded_vram_gib": 3.6073535149917006,
+    "cold_warmup_seconds": 8.819410299998708,
+    "strict_accuracy_cluster_bootstrap_95": [
+      0.8125,
+      1.0
+    ]
+  },
+  {
+    "model": "qwen3:14b",
+    "messages": 48,
+    "accepted": 48,
+    "validation_or_request_failures": 0,
+    "strict_accuracy": 0.7708333333333334,
+    "accepted_accuracy": 0.7708333333333334,
+    "alert_precision": 0.9333333333333333,
+    "alert_recall": 0.5833333333333334,
+    "alert_f1": 0.717948717948718,
+    "missed_important": 10,
+    "important_messages": 24,
+    "false_alerts": 1,
+    "nonimportant_messages": 24,
+    "false_alert_rate": 0.041666666666666664,
+    "category_agreement": 0.5625,
+    "agenda_evidence_rejected_messages": 0,
+    "raw_importance_accuracy": 0.7708333333333334,
+    "notification_policy": {
+      "precision": 0.9333333333333333,
+      "recall": 0.5833333333333334,
+      "true_positive": 14,
+      "false_positive": 1,
+      "missed_important": 10
+    },
+    "median_seconds": 2.3586684500041883,
+    "p95_seconds": 4.2787553000380285,
+    "loaded_vram_gib": 9.74950195197016,
+    "cold_warmup_seconds": 12.265730799990706,
+    "strict_accuracy_cluster_bootstrap_95": [
+      0.625,
+      0.8958333333333334
+    ]
+  }
+]

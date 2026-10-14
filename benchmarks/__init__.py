@@ -1,0 +1,1 @@
+"""Reproducible synthetic classification benchmarks."""

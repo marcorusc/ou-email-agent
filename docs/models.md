@@ -13,7 +13,7 @@ Sources: [Qwen3 4B](https://ollama.com/library/qwen3:4b), [Qwen3 14B](https://ol
 - Simple keyword-like classification may hold up well; subtle requests, broadcast versus personal obligations, negation, quoted old deadlines and multilingual context are harder.
 - Smaller models may make more source-evidence or date errors. Validation rejects unsupported importance evidence and prevents unsupported agenda details from being forwarded, but cannot catch every mistake or a missed important message.
 - Evidence rejection increases failed classifications; the monitor deliberately does not retry them continuously.
-- Evaluate false negatives (missed actionable mail), false positives (unwanted alerts), event/date correctness, evidence validity, failures and latency on a manually labelled sample. There is no project-specific accuracy claim comparing 4B with 14B yet.
+- Evaluate false negatives (missed actionable mail), false positives (unwanted alerts), event/date correctness, evidence validity, failures and latency on a manually labelled sample. A [48-message synthetic pilot](../benchmarks/results/2026-10-14-rtx5080/README.md) found 4B a promising lower-memory candidate with this prompt. It is not a real-mail validation or a general ranking of model quality.
 
 To try the smaller classifier:
 
