@@ -31,6 +31,9 @@ def load_config(path: str | Path | None = None) -> dict:
     config.setdefault('indexing_times', [])
     config.setdefault('scheduled_embedding_num_gpu', 99)
     config.setdefault('indexing_max_seconds', 1200)
+    config.setdefault('ollama_wsl_distro', '')
+    if not isinstance(config['ollama_wsl_distro'], str):
+        raise ValueError('ollama_wsl_distro must be a WSL distribution name or an empty string.')
     if not isinstance(config['indexing_times'], list) or not all(
             isinstance(t, str) and re.fullmatch(r'(?:[01]\d|2[0-3]):[0-5]\d', t)
             for t in config['indexing_times']):

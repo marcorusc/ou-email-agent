@@ -3,7 +3,9 @@ from __future__ import annotations
 import json
 import logging
 import os
+import subprocess
 import threading
+import time
 from contextlib import contextmanager
 from email.utils import parseaddr
 from pathlib import Path
@@ -111,7 +113,6 @@ def monitor(config):
         store.state('analysis_mode',mode)
         store.state('analysis_interval_seconds',config['analysis_interval_seconds'])
         store.state('historical_analysis','manual only')
-        store.close()
         functions = [sync_worker]
         if config['background_analysis']:
             functions.append(analysis_worker)
@@ -119,11 +120,36 @@ def monitor(config):
         for worker in workers:
             worker.start()
         log.info('Monitoring mode: %s. Ctrl+C stops. Calendar/Obsidian remain in ChatGPT.',mode)
+        model_host = None
+        last_host_attempt = float('-inf')
         try:
             while not stop.wait(1):
+                if (config.get('ollama_wsl_distro') and
+                        (model_host is None or model_host.poll() is not None) and
+                        time.monotonic()-last_host_attempt >= 60):
+                    last_host_attempt = time.monotonic()
+                    if model_host is not None and model_host.stdin is not None:
+                        model_host.stdin.close()
+                    try:
+                        # A pipe keeps WSL alive. Closing it lets cat exit; no shell or files are involved.
+                        model_host = subprocess.Popen(['wsl.exe', '-d', config['ollama_wsl_distro'],
+                                                       '--exec', '/bin/cat'], stdin=subprocess.PIPE,
+                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                            creationflags=subprocess.CREATE_NO_WINDOW)
+                        store.state('model_host_error', '')
+                    except OSError as exc:
+                        store.state('model_host_error', type(exc).__name__)
                 if any(not worker.is_alive() for worker in workers):
                     raise RuntimeError('Background worker stopped unexpectedly; restart monitor.')
         finally:
             stop.set()
             for worker in workers:
                 worker.join(timeout=2)
+            if model_host is not None:
+                if model_host.stdin is not None:
+                    model_host.stdin.close()
+                try:
+                    model_host.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    model_host.terminate()
+            store.close()

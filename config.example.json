@@ -31,5 +31,6 @@
   "timezone": "UTC",
   "indexing_times": [],
   "scheduled_embedding_num_gpu": 99,
-  "indexing_max_seconds": 1200
+  "indexing_max_seconds": 1200,
+  "ollama_wsl_distro": ""
 }
