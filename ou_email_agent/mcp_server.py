@@ -43,7 +43,13 @@ def server(config):
                 SUM(CASE WHEN j.status='failed' THEN 1 ELSE 0 END) AS failed
                 FROM messages m LEFT JOIN embedding_jobs j ON j.message=m.id AND j.model=?''',
                 (config['embedding_model'],)).fetchone()
+            history = {r['folder']:r['complete'] for r in db.db.execute('SELECT folder,complete FROM history_backfill')}
             return db.status() | {'folders':config['folders'], 'initial_days':config['initial_days'],
+                                  'history_scope':'all available server mail in configured folders' if config['initial_days']==0 else 'initial recent-mail window',
+                                  'full_history_download_complete':bool(config['initial_days']==0 and
+                                      db.state('last_sync') and not db.state('sync_error') and
+                                      db.state('sync_pending_messages')=='0' and
+                                      all(history.get(folder) for folder in config['folders'])),
                                   'attachment_content_indexed':False,
                                   'background_analysis':config['background_analysis'],
                                   'historical_analysis':'manual only',

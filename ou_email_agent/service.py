@@ -82,7 +82,10 @@ def monitor(config):
                 log.error('Sync failed: %s',type(exc).__name__)
             else:
                 # Wait for a successful empty sync so startup backlog has been fetched first.
-                if result['new_messages'] == 0:
+                history_pending = config['initial_days']==0 and any(
+                    not row['complete'] for row in store.db.execute('SELECT folder,complete FROM history_backfill')
+                    if row['folder'] in config['folders'])
+                if result['new_messages'] == 0 and result.get('pending_sync', 0)==0 and not history_pending:
                     try:
                         from .indexing import schedule_tick
                         schedule_tick(config, store)

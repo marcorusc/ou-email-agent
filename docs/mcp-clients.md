@@ -24,7 +24,7 @@ See the [MCP SDK host setup guide](https://py.sdk.modelcontextprotocol.io/get-st
 
 | Tool | Function |
 | --- | --- |
-| `email_status` | Freshness, index coverage, background indexing progress, schedule, errors |
+| `email_status` | Freshness, full-history download progress, index coverage, background indexing progress, schedule, errors |
 | `start_email_indexing` | Launch a bounded local indexing job; return immediately |
 | `search_email` | Hybrid keyword/semantic search with metadata filters |
 | `get_email` | Original message with body pagination |

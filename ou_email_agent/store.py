@@ -37,6 +37,10 @@ class Store:
         CREATE TABLE IF NOT EXISTS checkpoints (
           folder TEXT PRIMARY KEY, validity TEXT, last_uid INTEGER, initial_done INTEGER
         );
+        CREATE TABLE IF NOT EXISTS history_backfill (
+          folder TEXT PRIMARY KEY, validity TEXT NOT NULL, last_uid INTEGER NOT NULL,
+          upper_uid INTEGER NOT NULL, complete INTEGER NOT NULL, remaining INTEGER NOT NULL
+        );
         CREATE TABLE IF NOT EXISTS agenda (
           id TEXT PRIMARY KEY, message INTEGER REFERENCES messages(id), details_json TEXT,
           calendar_status TEXT NOT NULL DEFAULT 'pending', calendar_ref TEXT,
@@ -222,4 +226,5 @@ class Store:
         counts['failed_analysis'] = self.db.execute('SELECT count(*) FROM messages WHERE analysis_error IS NOT NULL').fetchone()[0]
         counts['pending_agenda'] = self.db.execute("SELECT count(*) FROM agenda WHERE calendar_status='pending' OR obsidian_status='pending'").fetchone()[0]
         counts['state'] = dict(self.db.execute('SELECT key,value FROM state'))
+        counts['history_import'] = [dict(row) for row in self.db.execute('SELECT * FROM history_backfill ORDER BY folder')]
         return counts

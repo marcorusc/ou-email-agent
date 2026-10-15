@@ -21,6 +21,8 @@ def load_config(path: str | Path | None = None) -> dict:
         raise ValueError("Configure at least one mailbox folder.")
     if int(config["poll_seconds"]) < 15 or int(config["batch_size"]) < 1:
         raise ValueError("poll_seconds must be >=15 and batch_size must be positive.")
+    if type(config.get('initial_days')) is not int or config['initial_days'] < 0:
+        raise ValueError('initial_days must be a nonnegative integer; 0 imports all available history.')
     config.setdefault('background_analysis', False)
     config.setdefault('analysis_interval_seconds', 300)
     config.setdefault('model_keep_alive', 0)

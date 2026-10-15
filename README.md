@@ -79,6 +79,16 @@ Embedding chunks start at 1,800 UTF-8 bytes, with overlap. Rejected oversized ch
 
 For paced new-mail alerts, set `background_analysis` to `true` and restart the monitor. It classifies at most one new, non-historical message every 300 seconds by default, with one automatic attempt and no embedding work. These settings reduce average activity, not peak GPU power. Initial imported history is manual-only and does not trigger desktop alerts.
 
+## Import all available email history
+
+Set `"initial_days": 0` in your private `config.json`, then restart the monitor and MCP connection. Zero means **all available server mail in the configured folders**, not zero days. The default example keeps the initial 30-day window for a smaller first trial.
+
+For an existing cache, the monitor uses a separate historical cursor to fill older gaps in batches (`batch_size` messages per folder per polling cycle), while still checking for new mail first. It skips already downloaded message locations, preserves existing classifications and vectors, and resumes after interruptions. Historical imports do not generate fresh-mail alerts. The next indexing run embeds only the newly imported/unfinished messages; it does not rebuild completed vectors. For immediate indexing after the download finishes, call `start_email_indexing`; otherwise the 09:00/16:00 schedule applies when configured.
+
+`email_status` reports `history_import` progress, `state.sync_pending_messages`, `full_history_download_complete`, and separate embedding coverage. Download completion and embedding completion are distinct. Errors and oversized-message stops remain visible; a partial import must not be described as a complete archive. Changing a positive day limit to another positive value does not backfill older gaps; use zero for full history.
+
+Only server-accessible messages are covered. Mail in local Outlook PST archives, deleted messages no longer on the server, and folders omitted from `folders` are not included. Attachments remain filenames only; their contents are not indexed.
+
 ## Automatic startup and scheduled indexing
 
 Set these optional fields in your private `config.json`:
@@ -136,8 +146,8 @@ Mail and vectors stay in a local SQLite database, which is **not application-enc
 
 **When an assistant calls an MCP tool, the returned email excerpts enter that assistant's context.** Using local models does not make a cloud-connected ChatGPT/Claude session fully local. Each colleague installs their own cache and credentials; this repository contains no mailbox data or live configuration.
 
-- Initial scope: last 30 days, INBOX. Sent/Archive folders require configuration; changing the initial-days setting does not backfill an existing checkpoint. Server moves/deletions are not mirrored.
-- Attachments: names only. No attachment body or ICS parsing. Messages over 20 MB stop that folder until configured otherwise.
+- Default initial scope: last 30 days, INBOX. Set `initial_days` to `0` for full available history, including an existing cache. Sent/Archive folders require configuration. Server moves/deletions are not mirrored.
+- Attachments: names only. No attachment body or ICS parsing. Unreadable legacy filenames are marked explicitly so they do not block importing the email body. Messages over 20 MB stop that folder until configured otherwise.
 - Sender/recipient filters match header substrings; names may be ambiguous. To and Cc are combined. Bcc and SMTP envelope recipients are unavailable.
 - Classification sees at most 16,000 body characters and reports truncation. Unsupported agenda details become source-review items. Invalid importance evidence is rejected. This is not a guarantee of correct extraction or complete alerts.
 - Thread linking uses Message-ID, References and In-Reply-To. Search results should be verified against the full source/thread.

@@ -33,6 +33,22 @@ class PlainHTML(HTMLParser):
 
 def parse_message(raw: bytes, internal_date: str = '') -> dict:
     msg = BytesParser(policy=policy.default).parsebytes(raw)
+    # Some legacy RFC2231 filename charsets raise even with surrogateescape.
+    # Preserve MIME type/disposition and the body; label unreadable filenames explicitly.
+    for item in msg.walk():
+        for header in ('Content-Disposition', 'Content-Type'):
+            try:
+                str(item.get(header, ''))
+            except (UnicodeError, LookupError):
+                original = next(value for key,value in item.raw_items() if key.lower()==header.lower())
+                base = original.split(';', 1)[0].strip().lower()
+                if header == 'Content-Disposition':
+                    base = base if base in ('inline', 'attachment') else 'attachment'
+                    value = base+'; filename="[undecodable attachment filename]"'
+                else:
+                    base = base if re.fullmatch(r'[a-z0-9.+-]+/[a-z0-9.+-]+', base) else 'application/octet-stream'
+                    value = base+'; name="[undecodable attachment filename]"'
+                item.replace_header(header, value)
     attachments = [str(p.get_filename()) for p in msg.walk() if p.get_filename()]
     part = msg.get_body(preferencelist=('plain','html'))
     body = ''
@@ -93,8 +109,79 @@ def check_connection(config, secret=None):
         return result
 
 
+def _import_uid(config, store, client, folder, validity, uid, cutoff, *, force_historical=False):
+    typ, meta = client.uid('FETCH', str(uid), '(RFC822.SIZE INTERNALDATE)')
+    if typ != 'OK':
+        raise RuntimeError(f'IMAP metadata fetch failed for UID {uid}')
+    meta_bytes = b' '.join(x for x in meta if isinstance(x, bytes))
+    size = re.search(rb'RFC822.SIZE (\d+)', meta_bytes)
+    if size and int(size[1]) > config['max_message_bytes']:
+        # Do not skip silently or fetch a huge attachment automatically.
+        store.state('oversize_message', f'{folder} UID {uid}: increase max_message_bytes to include it')
+        raise RuntimeError(f'Message UID {uid} exceeds configured download limit; sync paused for this folder')
+    internal = re.search(rb'INTERNALDATE "([^"]+)"', meta_bytes)
+    typ, payload = client.uid('FETCH', str(uid), '(BODY.PEEK[])')
+    if typ != 'OK':
+        raise RuntimeError(f'IMAP body fetch failed for UID {uid}')
+    literals = [x[1] for x in payload if isinstance(x, tuple) and isinstance(x[1], bytes)]
+    if not literals:
+        # Expunged between SEARCH and FETCH: retry next cycle, never advance past a failure.
+        raise RuntimeError(f'Message UID {uid} disappeared during fetch; retry sync')
+    raw = b''.join(literals)
+    mail = parse_message(raw, internal[1].decode() if internal else '')
+    received = mail['date']
+    if internal:
+        try:
+            received = parsedate_to_datetime(internal[1].decode()).astimezone(timezone.utc).isoformat()
+        except (ValueError, TypeError):
+            pass
+    historical = received <= cutoff
+    added = int(store.insert(mail, folder, validity, uid, historical or force_historical))
+    if (store.state('oversize_message') or '').startswith(f'{folder} UID {uid}:'):
+        store.state('oversize_message', '')
+    return added
+
+
+def _backfill(config, store, client, folder, validity, upper_uid, cutoff):
+    """A separate cursor fills old gaps without rewinding the new-mail checkpoint."""
+    row = store.db.execute('SELECT * FROM history_backfill WHERE folder=?', (folder,)).fetchone()
+    if row is None or row['validity'] != validity:
+        with store.db:
+            store.db.execute('INSERT OR REPLACE INTO history_backfill VALUES (?,?,?,?,0,0)',
+                             (folder, validity, 0, upper_uid))
+        last = 0
+    else:
+        if row['complete']:
+            return 0
+        last, upper_uid = row['last_uid'], row['upper_uid']
+    if last < upper_uid:
+        typ, data = client.uid('SEARCH', None, 'UID', f'{last+1}:{upper_uid}')
+        if typ != 'OK':
+            raise RuntimeError('Historical UID search failed')
+        uids = sorted(int(x) for x in (data[0] or b'').split() if last < int(x) <= upper_uid)
+    else:
+        uids = []
+    known = {r[0] for r in store.db.execute('SELECT uid FROM locations WHERE folder=? AND validity=?',
+                                           (folder, validity))}
+    pending = [uid for uid in uids if uid not in known]
+    with store.db:
+        store.db.execute('UPDATE history_backfill SET remaining=? WHERE folder=?', (len(pending), folder))
+    added = 0
+    for index, uid in enumerate(pending[:config['batch_size']]):
+        added += _import_uid(config, store, client, folder, validity, uid, cutoff, force_historical=True)
+        with store.db:
+            store.db.execute('UPDATE history_backfill SET last_uid=?,remaining=? WHERE folder=?',
+                             (uid, len(pending)-index-1, folder))
+    if len(pending) <= config['batch_size']:
+        with store.db:
+            store.db.execute('UPDATE history_backfill SET last_uid=upper_uid,complete=1,remaining=0 WHERE folder=?', (folder,))
+    return added
+
+
 def sync(config, store, secret: str, client_factory=None):
     total = 0
+    history_total = 0
+    pending_sync = 0
     factory = client_factory or connect
     # Fix the historical cutoff at first start. Retries cannot move it forward.
     cutoff = store.state('initial_cutoff')
@@ -119,41 +206,16 @@ def sync(config, store, secret: str, client_factory=None):
             reset = checkpoint is not None and checkpoint['validity'] != validity
             last = checkpoint['last_uid'] if checkpoint and not reset else 0
             initial_done = bool(checkpoint and checkpoint['initial_done'])
-            criteria = ('UID', f'{last+1}:*') if last else (('ALL',) if reset else ('SINCE', since))
+            criteria = ('UID', f'{last+1}:*') if last else (('ALL',) if reset or config['initial_days']==0 else ('SINCE', since))
             typ, data = client.uid('SEARCH', None, *criteria)
             if typ != 'OK':
                 raise RuntimeError('IMAP UID search failed')
             # IMAP n:* can return the latest UID even if n exceeds it.
             uids = sorted(int(x) for x in (data[0] or b'').split() if int(x) > last)
             batch = uids[:config['batch_size']]
+            pending_sync += len(uids)-len(batch)
             for uid in batch:
-                typ, meta = client.uid('FETCH', str(uid), '(RFC822.SIZE INTERNALDATE)')
-                if typ != 'OK':
-                    raise RuntimeError(f'IMAP metadata fetch failed for UID {uid}')
-                meta_bytes = b' '.join(x for x in meta if isinstance(x, bytes))
-                size = re.search(rb'RFC822.SIZE (\d+)', meta_bytes)
-                if size and int(size[1]) > config['max_message_bytes']:
-                    # Do not skip silently or fetch a huge attachment automatically.
-                    store.state('oversize_message', f'{folder} UID {uid}: increase max_message_bytes to include it')
-                    raise RuntimeError(f'Message UID {uid} exceeds configured download limit; sync paused for this folder')
-                internal = re.search(rb'INTERNALDATE "([^"]+)"', meta_bytes)
-                typ, payload = client.uid('FETCH', str(uid), '(BODY.PEEK[])')
-                if typ != 'OK':
-                    raise RuntimeError(f'IMAP body fetch failed for UID {uid}')
-                literals = [x[1] for x in payload if isinstance(x, tuple) and isinstance(x[1], bytes)]
-                if not literals:
-                    # Expunged between SEARCH and FETCH: retry next cycle, never advance past a failure.
-                    raise RuntimeError(f'Message UID {uid} disappeared during fetch; retry sync')
-                raw = b''.join(literals)
-                mail = parse_message(raw, internal[1].decode() if internal else '')
-                received = mail['date']
-                if internal:
-                    try:
-                        received = parsedate_to_datetime(internal[1].decode()).astimezone(timezone.utc).isoformat()
-                    except (ValueError, TypeError):
-                        pass
-                historical = received <= cutoff
-                total += int(store.insert(mail, folder, validity, uid, historical))
+                total += _import_uid(config, store, client, folder, validity, uid, cutoff)
                 last = uid
                 with store.db:
                     store.db.execute('INSERT OR REPLACE INTO checkpoints VALUES (?,?,?,?)',
@@ -161,6 +223,10 @@ def sync(config, store, secret: str, client_factory=None):
             with store.db:
                 store.db.execute('INSERT OR REPLACE INTO checkpoints VALUES (?,?,?,?)',
                                  (folder, validity, last, int(initial_done or len(uids) <= len(batch))))
+            if config['initial_days']==0:
+                history_total += _backfill(config, store, client, folder, validity, last, cutoff)
+    store.state('sync_pending_messages', pending_sync)
+    store.state('history_scope', 'all available' if config['initial_days']==0 else f"initial {config['initial_days']} days")
     store.state('last_sync', now())
     store.state('sync_error', '')
-    return {'new_messages': total}
+    return {'new_messages': total+history_total, 'history_messages': history_total, 'pending_sync': pending_sync}
