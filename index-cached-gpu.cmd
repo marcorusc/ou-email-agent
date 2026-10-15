@@ -1,9 +1,8 @@
 @echo off
 cd /d "%~dp0"
-title OU Email - one-time GPU indexing
-echo Indexing cached emails with the small embedding model on the GPU.
-echo Press Ctrl+C to stop. Saved chunks will be resumed next time.
+title OU Email - request indexing
+echo Requesting background indexing with the small embedding model.
 ".venv\Scripts\python.exe" -u index-cached.py
 echo.
-echo Indexing process ended. Progress is saved in data\indexing-progress.json.
+echo Check email_status through your assistant for progress. You may close this window.
 pause

@@ -1,4 +1,4 @@
-"""Bounded, resumable embedding work. No background or large-model inference."""
+"""Bounded, resumable embedding work. No large-model classification inference."""
 from __future__ import annotations
 
 import json

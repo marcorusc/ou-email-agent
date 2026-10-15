@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -27,6 +28,17 @@ def load_config(path: str | Path | None = None) -> dict:
     config.setdefault('embedding_num_gpu', 0)
     config.setdefault('embedding_num_thread', 2)
     config.setdefault('embedding_request_budget', 8)
+    config.setdefault('indexing_times', [])
+    config.setdefault('scheduled_embedding_num_gpu', 99)
+    config.setdefault('indexing_max_seconds', 1200)
+    if not isinstance(config['indexing_times'], list) or not all(
+            isinstance(t, str) and re.fullmatch(r'(?:[01]\d|2[0-3]):[0-5]\d', t)
+            for t in config['indexing_times']):
+        raise ValueError('indexing_times must be a list of HH:MM times in the Windows local timezone.')
+    if config['scheduled_embedding_num_gpu'] not in (0, 99):
+        raise ValueError('scheduled_embedding_num_gpu must be 0 (CPU) or 99 (GPU).')
+    if not 60 <= int(config['indexing_max_seconds']) <= 3600:
+        raise ValueError('indexing_max_seconds must be between 60 and 3600.')
     if not 128 <= int(config['embedding_max_bytes']) <= 1800:
         raise ValueError('embedding_max_bytes must be between 128 and 1800.')
     if not 1 <= int(config['embedding_num_thread']) <= 4 or not 1 <= int(config['embedding_request_budget']) <= 32:
@@ -36,6 +48,7 @@ def load_config(path: str | Path | None = None) -> dict:
     if int(config['analysis_interval_seconds']) < 60:
         raise ValueError('analysis_interval_seconds must be at least 60.')
     config["data_dir"] = str(Path(os.environ.get("OU_EMAIL_DATA", path.parent / "data")).resolve())
+    config['_config_path'] = str(path)
     return config
 
 

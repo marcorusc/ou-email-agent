@@ -78,6 +78,16 @@ def monitor(config):
             except Exception as exc:
                 store.state('sync_error',type(exc).__name__ + ': check connection/login and run doctor')
                 log.error('Sync failed: %s',type(exc).__name__)
+            else:
+                # Wait for a successful empty sync so startup backlog has been fetched first.
+                if result['new_messages'] == 0:
+                    try:
+                        from .indexing import schedule_tick
+                        schedule_tick(config, store)
+                        store.state('indexing_schedule_error', '')
+                    except Exception as exc:
+                        store.state('indexing_schedule_error', type(exc).__name__)
+                        log.error('Index scheduling failed: %s', type(exc).__name__)
             store.state('monitor_heartbeat',now())
             stop.wait(config['poll_seconds'])
         store.close()

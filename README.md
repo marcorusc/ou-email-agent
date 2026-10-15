@@ -10,7 +10,7 @@ Local IMAP email search, optional AI importance alerts, and an MCP server for de
 - Searches with keywords, semantic similarity, and sender, recipient (To/Cc), and date filters.
 - Links each text chunk to its email metadata and original thread headers.
 - Optionally flags direct requests, deadlines, and meeting changes using a local model.
-- Exposes seven MCP tools, including an agenda review queue. Calendar/Obsidian writes and scheduling belong to your chosen assistant and its separate integrations.
+- Exposes eight MCP tools, including background indexing and an agenda review queue. Calendar/Obsidian writes and scheduling belong to your chosen assistant and its separate integrations.
 
 The default monitor **only downloads mail**. Background classification and automatic embedding are disabled, avoiding a continuous GPU backlog. Search can run without the large classification model: keyword search needs no local model, and semantic search needs only the small embedding model.
 
@@ -50,8 +50,8 @@ ollama pull embeddinggemma
 Only if you want local importance classification/agenda extraction, also download your chosen classifier, for example `ollama pull qwen3:14b`. `install.ps1 -PullModels` downloads both configured models. Keep Ollama running.
 
 1. Open `setup.cmd`. Enter your password privately. The verified password is saved in Windows Credential Manager, and a recent batch is imported.
-2. Open `start-monitor.cmd`. The default sync-only monitor polls every 60 seconds. Stop it with Ctrl+C. It does not start automatically at login.
-3. Build the search index manually with one of the options below.
+2. Open `start-monitor.cmd`. The default sync-only monitor polls every 60 seconds. Stop it with Ctrl+C. Automatic sign-in startup is optional; see below.
+3. Build the search index manually or enable the twice-daily schedule below.
 4. Register MCP in your desktop assistant; see [MCP setup](docs/mcp-clients.md).
 
 This source checkout is the runtime installation: keep it in place. `config.json`, `data/`, `.venv/`, logs and local verification files are ignored by Git.
@@ -73,11 +73,35 @@ Run `.venv\Scripts\python.exe -m ou_email_agent` followed by:
 | `monitor` | Sync-only by default; optional paced classification |
 | `mcp` | Serve tools over stdio |
 
-For a one-time **GPU** index build, open `index-cached-gpu.cmd`. It runs only the small embedding model, saves chunk progress, stops after its initial cached-message snapshot is complete, and unloads the model on exit (30-second idle expiry as fallback). It stops on errors and can be interrupted with Ctrl+C. Progress is in `data/indexing-progress.json`. It does not change the CPU defaults or enable classification.
+For on-demand indexing, open `index-cached-gpu.cmd` or ask your MCP assistant to call `start_email_indexing`. Both launch the same background worker and return immediately. Closing the launcher window does not stop that worker. Check `email_status` for its progress, remaining messages and errors. It uses only the small embedding model, with GPU offload by default, saves successful chunks, and unloads on exit (30-second idle expiry as fallback). It does not enable classification or change the CPU settings used by normal semantic searches.
 
 Embedding chunks start at 1,800 UTF-8 bytes, with overlap. Rejected oversized chunks are split again without truncation. Completed chunks are reused. Semantic coverage is reported until all cached mail is embedded; keyword search already covers all cached bodies. Future imported messages require another indexing run.
 
 For paced new-mail alerts, set `background_analysis` to `true` and restart the monitor. It classifies at most one new, non-historical message every 300 seconds by default, with one automatic attempt and no embedding work. These settings reduce average activity, not peak GPU power. Initial imported history is manual-only and does not trigger desktop alerts.
+
+## Automatic startup and scheduled indexing
+
+Set these optional fields in your private `config.json`:
+
+```json
+"indexing_times": ["09:00", "16:00"],
+"scheduled_embedding_num_gpu": 99,
+"indexing_max_seconds": 1200
+```
+
+Times use the **Windows local timezone**, independently of the email/classifier `timezone` setting. Use `0` instead of `99` for CPU indexing. The example config leaves the schedule disabled (`[]`). After saving, restart an existing monitor, or start it for the first time. To start it automatically at future Windows sign-ins, run:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\enable-startup.ps1
+```
+
+This installs a shortcut in your own Startup folder, without storing a password there. It starts a hidden monitor under your Windows account, using the saved Credential Manager password. The installer does not launch an additional monitor now. Keep Ollama enabled at sign-in too. Logs rotate in `data/monitor.log`; `email_status` exposes sync freshness, indexing coverage, progress and errors. Run `disable-startup.ps1` to remove future automatic startup; it does not terminate an existing process. To stop a hidden monitor now, end its Python process in Task Manager. The monitor lock prevents a second monitor from running.
+
+The monitor fetches mail every polling interval. After a successful sync finds no further new messages, it checks the indexing schedule. A missed time while powered off or asleep is coalesced into one catch-up after sign-in/wake and successful sync. This does not wake the PC, run before sign-in, or fetch mail while offline. Startup may be delayed briefly by Windows. Missed days do not create a backlog of duplicate scheduled runs.
+
+Scheduled, manual and MCP indexing share a lock and process only unfinished cached messages. Each run snapshots the current queue, works in four-request batches with a one-second pause, and stops when done or after the 20-minute budget (checked between batches). Interrupted or partial work resumes next time. New arrivals after the snapshot wait for the next run. Successful chunks are never rebuilt just because another run was requested.
+
+The scheduler makes at most three launch attempts per time slot, at least 15 minutes apart, so Ollama can finish starting after sign-in. Individual failed email embedding jobs remain visible and require an explicit repair with `embed --message ID --retry-failed`; they are not retried continuously. A completed worker can still leave previously failed messages uncovered: always check `index_coverage.failed` and `unfinished`. Automatic importance classification remains a separate opt-in setting.
 
 ## Models and hardware
 

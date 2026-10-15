@@ -4,6 +4,8 @@ import argparse
 import getpass
 import json
 import logging
+from logging.handlers import RotatingFileHandler
+from pathlib import Path
 import sys
 
 from .config import load_config, credential_store, credential_service, password
@@ -36,7 +38,12 @@ def main():
     sub.add_parser('pull-models',help='Download the configured local models using Ollama')
     args=parser.parse_args()
     config=load_config(args.config)
-    logging.basicConfig(level=logging.INFO,format='%(asctime)s %(levelname)s %(message)s',stream=sys.stderr)
+    handlers = [logging.StreamHandler(sys.stderr)] if sys.stderr is not None else []
+    if args.command == 'monitor':
+        Path(config['data_dir']).mkdir(parents=True, exist_ok=True)
+        handlers.append(RotatingFileHandler(Path(config['data_dir'])/'monitor.log',
+                                           maxBytes=1000000, backupCount=2, encoding='utf-8'))
+    logging.basicConfig(level=logging.INFO,format='%(asctime)s %(levelname)s %(message)s',handlers=handlers)
     from . import mailbox,models,service
     if args.command=='credentials':
         db=Store(config['data_dir'])
